@@ -1,0 +1,7 @@
+.env
+*.env
+TraceIt-frontend/.env
+TraceIt-backend/.env
+node_modules/
+TraceIt-frontend/node_modules/
+TraceIt-backend/node_modules/
