@@ -1,73 +1,87 @@
-import React, { useState } from 'react';
-import { Search, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Filter, Loader } from 'lucide-react';
 import ItemCard from '../components/item-card.jsx';
-
-// Mock Data to simulate database items
-const MOCK_ITEMS = [
-  {
-    id: '1',
-    title: 'iPhone 13 Pro Max',
-    category: 'Electronics',
-    description: 'Blue iPhone with a clear case. Found on the bench near the fountain.',
-    location: 'Central Park, NY',
-    date: '2023-11-15',
-    imageUrl: 'https://images.unsplash.com/photo-1632661674596-df8be070a5c5?auto=format&fit=crop&q=80&w=800',
-    status: 'active',
-    type: 'found'
-  },
-  {
-    id: '2',
-    title: 'Brown Leather Wallet',
-    category: 'Wallet/Keys',
-    description: 'Lost my wallet containing ID and cards. Has a small scratch on the front.',
-    location: 'Grand Central Station',
-    date: '2023-11-14',
-    imageUrl: 'https://images.unsplash.com/photo-1627123424574-724758594e93?auto=format&fit=crop&q=80&w=800',
-    status: 'active',
-    type: 'lost'
-  },
-  {
-    id: '3',
-    title: 'Golden Retriever Dog',
-    category: 'Pets',
-    description: 'Friendly dog wearing a red collar. Answers to the name "Buddy".',
-    location: 'Brooklyn Heights',
-    date: '2023-11-16',
-    imageUrl: 'https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&q=80&w=800',
-    status: 'claimed', // Changed from pending to claimed
-    type: 'found'      // Changed from lost to found
-  },
-  // Removed Car Keys (ID 4)
-  {
-    id: '4',
-    title: 'MacBook Air M2',
-    category: 'Electronics',
-    description: 'Silver MacBook Air left in the library study room 304.',
-    location: 'University Library',
-    date: '2023-11-12',
-    imageUrl: 'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?auto=format&fit=crop&q=80&w=800',
-    status: 'active',
-    type: 'found'
-  },
-  {
-    id: '5',
-    title: 'Blue Backpack',
-    category: 'Clothing/Accessories',
-    description: 'Nike backpack containing textbooks and a water bottle.',
-    location: 'Subway Line 4',
-    date: '2023-11-10',
-    imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&q=80&w=800',
-    status: 'active',
-    type: 'lost'
-  }
-];
 
 const BrowseItems = ({ onNavigate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all'); // 'all', 'lost', 'found'
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Fetch items from backend
+  useEffect(() => {
+    fetchItems();
+  }, []);
+
+  const fetchItems = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      // Fetch both lost and found items
+      const [lostResponse, foundResponse] = await Promise.all([
+        fetch('http://localhost:5000/api/items/lost'),
+        fetch('http://localhost:5000/api/found-items')
+      ]);
+
+      const lostData = await lostResponse.json();
+      const foundData = await foundResponse.json();
+
+      if (lostData.success && foundData.success) {
+        // Combine and format items - UPDATED to include phone field
+        const lostItems = lostData.items.map(item => ({
+          id: item._id,
+          title: item.itemName,
+          category: item.category,
+          description: item.description || `Lost at ${item.locationLost}`,
+          location: item.locationLost,
+          date: item.dateLost,
+          phone: item.phone || '', // Phone from item
+          imageUrl: item.photos && item.photos.length > 0 
+            ? item.photos[0] 
+            : 'https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&q=80&w=800',
+          status: 'active',
+          type: 'lost',
+          reportedBy: item.reportedBy // Keep the full object with name, email, and phone
+        }));
+
+        const foundItems = foundData.foundItems.map(item => ({
+          id: item._id,
+          title: item.itemName,
+          category: item.category,
+          description: `Found at ${item.locationFound}`, // Brief description for card
+          securityQuestion: item.securityQuestion, // Security question for verification
+          location: item.locationFound,
+          date: item.dateFound,
+          phone: item.phone || '', // Phone from item
+          imageUrl: item.photos && item.photos.length > 0 
+            ? item.photos[0] 
+            : 'https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&q=80&w=800',
+          status: item.status === 'claimed' ? 'claimed' : 'active',
+          type: 'found',
+          foundBy: item.foundBy // Keep the full object with name, email, and phone
+        }));
+
+        // Combine and sort by date (newest first)
+        const allItems = [...lostItems, ...foundItems].sort((a, b) => 
+          new Date(b.date) - new Date(a.date)
+        );
+
+        setItems(allItems);
+      } else {
+        setError('Failed to fetch items');
+      }
+    } catch (err) {
+      console.error('Fetch error:', err);
+      setError('Unable to connect to server');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filter logic
-  const filteredItems = MOCK_ITEMS.filter(item => {
+  const filteredItems = items.filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           item.location.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === 'all' || item.type === filterType;
@@ -101,7 +115,7 @@ const BrowseItems = ({ onNavigate }) => {
               />
             </div>
 
-            {/* Filter Dropdown (Simple Select) */}
+            {/* Filter Dropdown */}
             <div className="relative w-full sm:w-48">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <select 
@@ -117,21 +131,52 @@ const BrowseItems = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Grid Display */}
-        {filteredItems.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredItems.map((item) => (
-              <ItemCard key={item.id} item={item} type={item.type} />
-            ))}
-          </div>
-        ) : (
+        {/* Loading State */}
+        {loading && (
           <div className="text-center py-20">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-              <Search className="w-8 h-8 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-900">No items found</h3>
-            <p className="text-gray-500">Try adjusting your search or filters.</p>
+            <Loader className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500">Loading items...</p>
           </div>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
+            <p className="text-red-800 font-semibold">⚠️ {error}</p>
+            <button 
+              onClick={fetchItems}
+              className="mt-4 px-6 py-2 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {/* Grid Display */}
+        {!loading && !error && (
+          <>
+            {filteredItems.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredItems.map((item) => (
+                  <ItemCard key={item.id} item={item} type={item.type} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-20">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+                  <Search className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">No items found</h3>
+                <p className="text-gray-500 mb-6">Try adjusting your search or filters.</p>
+                <button
+                  onClick={() => onNavigate('lost-item')}
+                  className="px-6 py-3 bg-black text-white font-bold rounded-xl hover:bg-gray-800 transition-colors"
+                >
+                  Report Lost Item
+                </button>
+              </div>
+            )}
+          </>
         )}
 
       </div>

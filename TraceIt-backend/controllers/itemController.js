@@ -5,7 +5,7 @@ const Item = require('../models/Item');
 // @access  Private
 exports.reportLostItem = async (req, res) => {
   try {
-    const { itemName, category, locationLost, dateLost, photos } = req.body;
+    const { itemName, category, description, locationLost, dateLost, phone, photos } = req.body;
 
     // Validate required fields
     if (!itemName || !category || !locationLost || !dateLost) {
@@ -19,8 +19,10 @@ exports.reportLostItem = async (req, res) => {
     const item = await Item.create({
       itemName,
       category,
+      description: description || '',
       locationLost,
       dateLost,
+      phone: phone || '',
       photos: photos || [],
       reportedBy: req.user._id,
       status: 'lost'
@@ -46,7 +48,7 @@ exports.reportLostItem = async (req, res) => {
 exports.getLostItems = async (req, res) => {
   try {
     const items = await Item.find({ status: 'lost' })
-      .populate('reportedBy', 'name email')
+      .populate('reportedBy', 'name email phone')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -91,7 +93,7 @@ exports.getMyReports = async (req, res) => {
 exports.getItemById = async (req, res) => {
   try {
     const item = await Item.findById(req.params.id)
-      .populate('reportedBy', 'name email');
+      .populate('reportedBy', 'name email phone');
 
     if (!item) {
       return res.status(404).json({

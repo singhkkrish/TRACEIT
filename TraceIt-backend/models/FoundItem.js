@@ -24,6 +24,13 @@ const foundItemSchema = new mongoose.Schema({
     required: [true, 'Please provide the date when item was found']
   },
   
+  // Contact phone number
+  phone: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  
   // Security Question (for verification)
   securityQuestion: {
     type: String,

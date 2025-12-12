@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, MapPin, Type, ShieldQuestion, X, CheckCircle, LogIn } from 'lucide-react';
+import { Upload, MapPin, Type, ShieldQuestion, X, CheckCircle, LogIn, Phone } from 'lucide-react';
 
 const FoundItem = ({ onNavigate, onAuthRequired, initialFormData, onClearPendingData }) => {
   const [formData, setFormData] = useState({
@@ -7,6 +7,7 @@ const FoundItem = ({ onNavigate, onAuthRequired, initialFormData, onClearPending
     category: '',
     locationFound: '',
     dateFound: '',
+    phone: '',
     securityQuestion: '',
     securityAnswer: '',
     photos: []
@@ -25,7 +26,6 @@ const FoundItem = ({ onNavigate, onAuthRequired, initialFormData, onClearPending
       if (initialFormData.photos && initialFormData.photos.length > 0) {
         setImagePreview(initialFormData.photos[0]);
       }
-      // Clear pending data after restoration
       if (onClearPendingData) {
         onClearPendingData();
       }
@@ -61,6 +61,7 @@ const FoundItem = ({ onNavigate, onAuthRequired, initialFormData, onClearPending
           ...formData,
           photos: [base64String]
         });
+        setError(''); // Clear any previous errors
       };
       reader.readAsDataURL(file);
     }
@@ -78,23 +79,26 @@ const FoundItem = ({ onNavigate, onAuthRequired, initialFormData, onClearPending
     e.preventDefault();
     setError('');
 
-    // Validate required fields
+    // Validate required fields including photo
     if (!formData.itemName || !formData.category || !formData.locationFound || 
         !formData.dateFound || !formData.securityQuestion || !formData.securityAnswer) {
       setError('Please fill in all required fields');
       return;
     }
 
-    // Check if user is logged in
+    // Check if image is uploaded
+    if (!formData.photos || formData.photos.length === 0) {
+      setError('Please upload a photo of the item');
+      return;
+    }
+
     const token = localStorage.getItem('token');
     
     if (!token) {
-      // Show auth required modal
       setShowAuthModal(true);
       return;
     }
 
-    // User is logged in, proceed with submission
     setLoading(true);
 
     try {
@@ -112,12 +116,12 @@ const FoundItem = ({ onNavigate, onAuthRequired, initialFormData, onClearPending
       if (data.success) {
         setShowSuccessModal(true);
         
-        // Reset form
         setFormData({
           itemName: '',
           category: '',
           locationFound: '',
           dateFound: '',
+          phone: '',
           securityQuestion: '',
           securityAnswer: '',
           photos: []
@@ -126,7 +130,7 @@ const FoundItem = ({ onNavigate, onAuthRequired, initialFormData, onClearPending
 
         setTimeout(() => {
           setShowSuccessModal(false);
-          onNavigate('home');
+          onNavigate('browse-items');
         }, 3000);
       } else {
         setError(data.message || 'Failed to submit report');
@@ -139,7 +143,6 @@ const FoundItem = ({ onNavigate, onAuthRequired, initialFormData, onClearPending
     }
   };
 
-  // Handle login redirect with form data preservation
   const handleLoginRedirect = () => {
     setShowAuthModal(false);
     if (onAuthRequired) {
@@ -147,7 +150,6 @@ const FoundItem = ({ onNavigate, onAuthRequired, initialFormData, onClearPending
     }
   };
 
-  // Handle register redirect with form data preservation
   const handleRegisterRedirect = () => {
     setShowAuthModal(false);
     if (onAuthRequired) {
@@ -258,7 +260,30 @@ const FoundItem = ({ onNavigate, onAuthRequired, initialFormData, onClearPending
               </div>
             </div>
 
-            {/* Section 3: Verification Question */}
+            {/* Section 3: Contact Information */}
+            <div>
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Phone className="w-5 h-5 text-teal-600" /> Contact Information
+              </h3>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Phone Number (Optional)
+                </label>
+                <input 
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  placeholder="e.g. +91 98765 43210" 
+                  className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
+                />
+                <p className="text-xs text-teal-600">
+                  💡 Providing a phone number helps the owner contact you faster
+                </p>
+              </div>
+            </div>
+
+            {/* Section 4: Verification Question */}
             <div className="bg-teal-50 rounded-2xl p-6 border border-teal-100">
               <h3 className="text-lg font-bold mb-2 flex items-center gap-2 text-teal-800">
                 <ShieldQuestion className="w-5 h-5" /> Security Question
@@ -303,33 +328,39 @@ const FoundItem = ({ onNavigate, onAuthRequired, initialFormData, onClearPending
               </div>
             </div>
 
-            {/* Section 4: Image Upload */}
+            {/* Section 5: Image Upload - NOW REQUIRED */}
             <div>
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Upload className="w-5 h-5 text-teal-600" /> Photos (Optional)
+                <Upload className="w-5 h-5 text-teal-600" /> 
+                Photos <span className="text-red-500">*</span>
               </h3>
               
               {!imagePreview ? (
-                <label className="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center hover:bg-gray-50 transition-colors cursor-pointer group block">
+                <label className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center hover:bg-gray-50 transition-colors cursor-pointer group block">
                   <input 
                     type="file" 
                     accept="image/*"
                     onChange={handleImageUpload}
                     className="hidden"
+                    required
                   />
                   <div className="w-12 h-12 bg-gray-100 group-hover:bg-teal-50 rounded-full flex items-center justify-center mx-auto mb-3 transition-colors">
                     <Upload className="w-6 h-6 text-gray-400 group-hover:text-teal-600 transition-colors" />
                   </div>
-                  <p className="text-sm font-medium text-gray-600">Click to upload image</p>
-                  <p className="text-xs text-gray-400 mt-1">JPG, PNG up to 10MB</p>
+                  <p className="text-sm font-medium text-gray-900 mb-1">Click to upload image</p>
+                  <p className="text-xs text-red-600 font-medium mb-1">⚠️ Photo is required</p>
+                  <p className="text-xs text-gray-400">JPG, PNG up to 10MB</p>
                 </label>
               ) : (
-                <div className="relative rounded-2xl overflow-hidden border border-gray-200">
+                <div className="relative rounded-2xl overflow-hidden border-2 border-green-200">
                   <img 
                     src={imagePreview} 
                     alt="Preview" 
                     className="w-full h-64 object-cover"
                   />
+                  <div className="absolute top-3 left-3 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                    ✓ Photo uploaded
+                  </div>
                   <button
                     type="button"
                     onClick={removeImage}
@@ -423,7 +454,7 @@ const FoundItem = ({ onNavigate, onAuthRequired, initialFormData, onClearPending
               
               <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
                 <div className="w-2 h-2 bg-teal-600 rounded-full animate-pulse"></div>
-                <span>Redirecting to home page...</span>
+                <span>Redirecting to browse page...</span>
               </div>
             </div>
           </div>

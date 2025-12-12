@@ -9,13 +9,13 @@ exports.reportFoundItem = async (req, res) => {
       itemName, 
       category, 
       locationFound, 
-      dateFound, 
+      dateFound,
+      phone, 
       securityQuestion, 
       securityAnswer, 
       photos 
     } = req.body;
 
-    // Validate required fields
     if (!itemName || !category || !locationFound || !dateFound || !securityQuestion || !securityAnswer) {
       return res.status(400).json({
         success: false,
@@ -23,12 +23,12 @@ exports.reportFoundItem = async (req, res) => {
       });
     }
 
-    // Create new found item report
     const foundItem = await FoundItem.create({
       itemName,
       category,
       locationFound,
       dateFound,
+      phone: phone || '',
       securityQuestion,
       securityAnswer,
       photos: photos || [],
@@ -36,7 +36,6 @@ exports.reportFoundItem = async (req, res) => {
       status: 'found'
     });
 
-    // Return without security answer
     const foundItemResponse = await FoundItem.findById(foundItem._id);
 
     res.status(201).json({
@@ -59,7 +58,7 @@ exports.reportFoundItem = async (req, res) => {
 exports.getFoundItems = async (req, res) => {
   try {
     const foundItems = await FoundItem.find({ status: 'found' })
-      .populate('foundBy', 'name email')
+      .populate('foundBy', 'name email phone')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -104,7 +103,7 @@ exports.getMyFoundReports = async (req, res) => {
 exports.getFoundItemById = async (req, res) => {
   try {
     const foundItem = await FoundItem.findById(req.params.id)
-      .populate('foundBy', 'name email');
+      .populate('foundBy', 'name email phone');
 
     if (!foundItem) {
       return res.status(404).json({
@@ -126,62 +125,108 @@ exports.getFoundItemById = async (req, res) => {
   }
 };
 
-// @desc    Verify security answer for claiming an item
+// --------------------------------------------------------
+// ✅ UPDATED SECURITY VERIFICATION WITH PARTIAL MATCHING
+// --------------------------------------------------------
+
+// @desc    Verify security answer
 // @route   POST /api/found-items/:id/verify
 // @access  Public
 exports.verifySecurityAnswer = async (req, res) => {
   try {
-    const { answer } = req.body;
+    const { securityAnswer } = req.body;
 
-    if (!answer) {
+    if (!securityAnswer) {
       return res.status(400).json({
         success: false,
         message: 'Please provide an answer'
       });
     }
 
-    // Get found item with security answer
     const foundItem = await FoundItem.findById(req.params.id)
       .select('+securityAnswer')
-      .populate('foundBy', 'name email');
+      .populate('foundBy', 'name email phone');
 
     if (!foundItem) {
       return res.status(404).json({
         success: false,
-        message: 'Found item not found'
+        message: 'Item not found'
       });
     }
 
-    // Compare answers (case-insensitive)
-    const isMatch = answer.trim().toLowerCase() === foundItem.securityAnswer.trim().toLowerCase();
+    const userAns = securityAnswer.trim().toLowerCase();
+    const correctAns = foundItem.securityAnswer.trim().toLowerCase();
 
-    if (isMatch) {
-      res.status(200).json({
+    const similarity = calculateSimilarity(userAns, correctAns);
+    const partial =
+      correctAns.includes(userAns) || userAns.includes(correctAns);
+
+    if (similarity >= 0.7 || partial) {
+      // Get phone from foundItem or foundBy user
+      const phone = foundItem.phone || foundItem.foundBy.phone || null;
+
+      return res.status(200).json({
         success: true,
-        message: 'Verification successful! Contact the finder.',
-        contact: {
+        message: 'Verification successful',
+        contactInfo: {
           name: foundItem.foundBy.name,
-          email: foundItem.foundBy.email
+          email: foundItem.foundBy.email,
+          phone: phone
         }
       });
-    } else {
-      res.status(401).json({
-        success: false,
-        message: 'Incorrect answer. Please try again.'
-      });
     }
+
+    return res.status(401).json({
+      success: false,
+      message: 'Incorrect answer. Please try again.'
+    });
+
   } catch (error) {
-    console.error('❌ Verify Answer Error:', error);
+    console.error('❌ Verification Error:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error during verification'
+      message: 'Server error during verification'
     });
   }
 };
 
-// @desc    Update found item report
-// @route   PUT /api/found-items/:id
-// @access  Private (only item finder)
+// Helper: Similarity
+function calculateSimilarity(str1, str2) {
+  const longer = str1.length > str2.length ? str1 : str2;
+  const shorter = str1.length > str2.length ? str2 : str1;
+
+  if (longer.length === 0) return 1.0;
+
+  const editDistance = levenshteinDistance(longer, shorter);
+  return (longer.length - editDistance) / longer.length;
+}
+
+function levenshteinDistance(str1, str2) {
+  const matrix = [];
+
+  for (let i = 0; i <= str2.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= str1.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[str2.length][str1.length];
+}
+
+// --------------------------------------------------------
+// REMAINING CONTROLLERS (UNCHANGED)
+// --------------------------------------------------------
+
 exports.updateFoundItem = async (req, res) => {
   try {
     let foundItem = await FoundItem.findById(req.params.id);
@@ -193,7 +238,6 @@ exports.updateFoundItem = async (req, res) => {
       });
     }
 
-    // Check if user is the finder
     if (foundItem.foundBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -221,9 +265,6 @@ exports.updateFoundItem = async (req, res) => {
   }
 };
 
-// @desc    Delete found item report
-// @route   DELETE /api/found-items/:id
-// @access  Private (only item finder)
 exports.deleteFoundItem = async (req, res) => {
   try {
     const foundItem = await FoundItem.findById(req.params.id);
@@ -235,7 +276,6 @@ exports.deleteFoundItem = async (req, res) => {
       });
     }
 
-    // Check if user is the finder
     if (foundItem.foundBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -258,9 +298,6 @@ exports.deleteFoundItem = async (req, res) => {
   }
 };
 
-// @desc    Mark found item as claimed
-// @route   PUT /api/found-items/:id/claim
-// @access  Private (only item finder)
 exports.markAsClaimed = async (req, res) => {
   try {
     const foundItem = await FoundItem.findById(req.params.id);
@@ -272,7 +309,6 @@ exports.markAsClaimed = async (req, res) => {
       });
     }
 
-    // Check if user is the finder
     if (foundItem.foundBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
