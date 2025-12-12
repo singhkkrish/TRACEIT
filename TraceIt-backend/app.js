@@ -36,7 +36,7 @@ const app = express();
 
 // Middleware - UPDATED CORS
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173'], // ✅ Both ports
+  origin: ['http://localhost:3000', 'http://localhost:5173','https://traceit-frontend.onrender.com'], 
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
