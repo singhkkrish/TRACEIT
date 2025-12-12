@@ -21,8 +21,8 @@ const BrowseItems = ({ onNavigate }) => {
     try {
       // Fetch both lost and found items
       const [lostResponse, foundResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/items/lost'),
-        fetch('http://localhost:5000/api/found-items')
+        fetch('https://traceit-backend.onrender.com/api/items/lost'),
+        fetch('https://traceit-backend.onrender.com/api/found-items')
       ]);
 
       const lostData = await lostResponse.json();
