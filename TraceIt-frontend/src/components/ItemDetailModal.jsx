@@ -48,7 +48,7 @@ const ItemDetailModal = ({ item, isOpen, onClose, type }) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`http://localhost:5000/api/found-items/${item.id}/verify`, {
+      const response = await fetch(`https://traceit-backend.onrender.com/api/found-items/${item.id}/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
